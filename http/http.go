@@ -1,5 +1,5 @@
-// Provides code for managing http server lifecycle and helpers for error
-// handling,
+// Provides code for managing http server lifecycle. Also includes some
+// helpers for error handling and common middleware.
 package http
 
 import (
