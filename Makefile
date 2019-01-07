@@ -9,3 +9,7 @@ ifeq ("$(wildcard $(shell which gocov))","")
 	go get github.com/axw/gocov/gocov
 endif
 	gocov test ${PKG_LIST} | gocov report
+
+# Run integration tests with gcloud pubsub
+testgcloud:
+	gocov test --tags gcloud ${PKG_LIST} | gocov report

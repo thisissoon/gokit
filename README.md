@@ -17,3 +17,11 @@ To run the test suite with coverage report:
 ```
 make test
 ```
+
+To run pubsub tests with gcloud emulator:
+```bash
+❯ gcloud beta emulators pubsub start
+...
+❯ $(gcloud beta emulators pubsub env-init)
+❯ make testgcloud
+```
