@@ -1,6 +1,10 @@
 # Kit
 A set of common packages for building applications in Go at SOON_
 
+```
+go get go.soon.build/kit
+```
+
 ## Development
 
 ### Tests
