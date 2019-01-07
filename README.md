@@ -1,6 +1,7 @@
 # Kit
 
 [![CircleCI](https://circleci.com/gh/thisissoon/gokit.svg?style=svg)](https://circleci.com/gh/thisissoon/gokit)
+[![Go Report Card](https://goreportcard.com/badge/go.soon.build/kit)](https://goreportcard.com/report/go.soon.build/kit)
 
 A set of common packages for building applications in Go at SOON_
 

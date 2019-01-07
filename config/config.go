@@ -71,10 +71,7 @@ func ReadInConfig(v *viper.Viper, c interface{}, opts ...Option) error {
 	default:
 		return err
 	}
-	if err := v.Unmarshal(c); err != nil {
-		return err
-	}
-	return nil
+	return v.Unmarshal(c)
 }
 
 // lowerFirst lowercases the first character of a string

@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Use RegisterServiceFunc to register services with the test gRPC server
+// RegisterServiceFunc registers a service with the test gRPC server
 type RegisterServiceFunc func(*grpc.Server)
 
 // ServerClient creates a gRPC server and client connection for the server

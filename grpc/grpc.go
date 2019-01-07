@@ -14,7 +14,7 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// An Option funtion can override configuration options
+// An Option function can override configuration options
 // for a server
 type Option func(*Server)
 
@@ -33,7 +33,7 @@ func WithLogger(log zerolog.Logger) Option {
 	}
 }
 
-// Use RegisterServiceFunc to register services with the gRPC server
+// RegisterServiceFunc registers a service with the gRPC server
 // returning the service name
 //
 // Example:
@@ -115,7 +115,7 @@ func (s *Server) Stop() error {
 
 }
 
-// NewServer creates a new gRPC server. Provide a list of service registers
+// New creates a new gRPC server. Provide a slice of service registers
 // and use Option functions to override defaults.
 func New(services []RegisterServiceFunc, opts ...Option) *Server {
 	s := &Server{

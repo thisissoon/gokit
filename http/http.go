@@ -1,4 +1,4 @@
-// Provides code for managing http server lifecycle. Also includes some
+// Package http provides code for managing http server lifecycle. Also includes some
 // helpers for error handling and common middleware.
 package http
 
