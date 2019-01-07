@@ -1,4 +1,7 @@
 # Kit
+
+[![CircleCI](https://circleci.com/gh/thisissoon/gokit.svg?style=svg)](https://circleci.com/gh/thisissoon/gokit)
+
 A set of common packages for building applications in Go at SOON_
 
 ```
