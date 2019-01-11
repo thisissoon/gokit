@@ -8,6 +8,7 @@ require (
 	github.com/rs/zerolog v1.11.0
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.3.1
+	github.com/stretchr/testify v1.2.2
 	github.com/zenazn/goji v0.9.0 // indirect
 	google.golang.org/api v0.1.0 // indirect
 	google.golang.org/grpc v1.17.0
