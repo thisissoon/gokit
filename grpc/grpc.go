@@ -26,10 +26,17 @@ func WithAddress(addr string) Option {
 	}
 }
 
-// WithLogger sets the service name used for healthcheck
+// WithLogger overrides the logger instance
 func WithLogger(log zerolog.Logger) Option {
 	return func(s *Server) {
 		s.log = log
+	}
+}
+
+// WithServer overrides the grpc Server instance
+func WithServer(srv *grpc.Server) Option {
+	return func(s *Server) {
+		s.srv = srv
 	}
 }
 
@@ -77,8 +84,6 @@ func (s *Server) Start() error {
 	if err != nil {
 		return err
 	}
-	// Create new grpc server
-	s.srv = grpc.NewServer()
 	// Health check server
 	hs := health.NewServer()
 	// Register services
@@ -119,6 +124,7 @@ func (s *Server) Stop() error {
 // and use Option functions to override defaults.
 func New(services []RegisterServiceFunc, opts ...Option) *Server {
 	s := &Server{
+		srv:  grpc.NewServer(),
 		addr: ":5000",
 		log:  zerolog.New(os.Stdout),
 		sigC: make(chan os.Signal),
