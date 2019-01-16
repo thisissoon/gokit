@@ -96,8 +96,11 @@ func bindEnvs(v *viper.Viper, iface interface{}, parts ...string) error {
 	}
 	for i := 0; i < ift.NumField(); i++ {
 		val := ifv.Field(i)
-		// lowercase first character of field name `Log` => log
-		tv := lowerFirst(ift.Field(i).Name)
+		tv := ift.Field(i).Tag.Get("mapstructure")
+		if tv == "" {
+			// default to field name, with lowercased first char `Log` => log
+			tv = lowerFirst(ift.Field(i).Name)
+		}
 		switch val.Kind() {
 		case reflect.Struct:
 			// If the field is a struct the name of the field is appended

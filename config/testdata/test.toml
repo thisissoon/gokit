@@ -2,3 +2,4 @@
 [log]
 console = true
 level = "info"
+customTag = "value"
