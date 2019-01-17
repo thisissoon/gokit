@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
-
-	"github.com/rs/zerolog"
 )
 
 // Config contains data source name settings
@@ -32,8 +30,7 @@ func (config Config) DSN() string {
 }
 
 // Open opens a database connection pool to a database server
-func Open(ctx context.Context, log zerolog.Logger, config Config) (*sql.DB, error) {
-	log.Debug().Msg("opening db connection")
+func Open(ctx context.Context, config Config) (*sql.DB, error) {
 	db, err := sql.Open("postgres", config.DSN())
 	if err != nil {
 		return nil, err
