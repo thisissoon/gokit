@@ -69,9 +69,12 @@ func (m *Migrator) Up(steps int) error {
 }
 
 // MigrateDown run down migrations
-func (m *Migrator) Down() error {
+func (m *Migrator) Down(steps int) error {
 	defer m.Db.Close()
-	return m.Migrate.Down()
+	if steps == 0 {
+		return m.Migrate.Down()
+	}
+	return m.Migrate.Steps(-steps)
 }
 
 // MigrateForce force version
