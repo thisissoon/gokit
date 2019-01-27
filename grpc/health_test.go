@@ -26,8 +26,8 @@ func TestHealthRequest(t *testing.T) {
 		},
 		{
 			desc: "fail",
-			svc:  []string{"test", "unkown"},
-			err:  errors.New("cound not create gRPC client connection: rpc error: code = NotFound desc = unknown service"),
+			svc:  []string{"test", "unknown"},
+			err:  errors.New("could not create gRPC client connection: rpc error: code = NotFound desc = unknown service"),
 		},
 	}
 	for _, tc := range testCases {
