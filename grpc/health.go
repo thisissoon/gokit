@@ -16,7 +16,7 @@ import (
 func HealthRequest(host string, svc []string, reqIDField string, log zerolog.Logger) error {
 	cc, err := NewClient(host)
 	if err != nil {
-		return fmt.Errorf("cound not create gRPC client connection: %v", err)
+		return fmt.Errorf("could not create gRPC client connection: %v", err)
 	}
 	hc := healthpb.NewHealthClient(cc)
 	var wg sync.WaitGroup
@@ -29,7 +29,7 @@ func HealthRequest(host string, svc []string, reqIDField string, log zerolog.Log
 			l := log.With().Str(reqIDField, requestID).Logger()
 			md := metadata.Pairs(reqIDField, requestID)
 			ctx := metadata.NewOutgoingContext(context.Background(), md)
-			l.Debug().Msg("running healthceck")
+			l.Debug().Msg("running healthcheck")
 			rsp, err := hc.Check(ctx, &healthpb.HealthCheckRequest{
 				Service: svc,
 			})
@@ -44,7 +44,7 @@ func HealthRequest(host string, svc []string, reqIDField string, log zerolog.Log
 					errC <- fmt.Errorf("%s: not serving", svc)
 				}
 			default:
-				errC <- fmt.Errorf("cound not create gRPC client connection: %v", err)
+				errC <- fmt.Errorf("could not create gRPC client connection: %v", err)
 			}
 		}(svc)
 	}

@@ -124,11 +124,12 @@ func (s *Server) Stop() error {
 // and use Option functions to override defaults.
 func New(services []RegisterServiceFunc, opts ...Option) *Server {
 	s := &Server{
-		srv:  grpc.NewServer(),
-		addr: ":5000",
-		log:  zerolog.New(os.Stdout),
-		sigC: make(chan os.Signal),
-		errC: make(chan error),
+		srv:      grpc.NewServer(),
+		addr:     ":5000",
+		log:      zerolog.New(os.Stdout),
+		sigC:     make(chan os.Signal),
+		errC:     make(chan error),
+		services: services,
 	}
 	for _, opt := range opts {
 		opt(s)
