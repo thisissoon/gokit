@@ -22,11 +22,10 @@ func (m *Message) Data() []byte {
 
 // Gcloud is an implementation of Publisher/Subscriber for Google Cloud Pubsub
 type Gcloud struct {
-	subName   string
-	projectID string
-	topic     *pubsub.Topic
-	client    *pubsub.Client
-	log       zerolog.Logger
+	subName string
+	topic   *pubsub.Topic
+	client  *pubsub.Client
+	log     zerolog.Logger
 }
 
 // Option configures a Gcloud instance
@@ -44,7 +43,6 @@ func WithLogger(log zerolog.Logger) Option {
 	return func(p *Gcloud) {
 		p.log = log.With().
 			Str("pkg", "pubsub").
-			Str("project", p.projectID).
 			Str("topic", p.topic.String()).
 			Logger()
 	}
@@ -52,24 +50,16 @@ func WithLogger(log zerolog.Logger) Option {
 
 // New sets up a Gcloud instance for Publish/Subscribing to a
 // Google Cloud Pubsub topic
-func New(ctx context.Context, project, topic string, opts ...Option) (*Gcloud, error) {
+func New(ctx context.Context, topic string, client *pubsub.Client, opts ...Option) (*Gcloud, error) {
 	log := zerolog.New(os.Stdout).With().
 		Str("pkg", "pubsub").
-		Str("project", project).
 		Str("topic", topic).
 		Logger()
-	// context for calling NewClient should not timeout
-	// https://godoc.org/cloud.google.com/go#hdr-Timeouts_and_Cancellation
-	client, err := pubsub.NewClient(ctx, project)
-	if err != nil {
-		return nil, err
-	}
 	p := &Gcloud{
-		subName:   "kit",
-		projectID: project,
-		client:    client,
-		topic:     client.Topic(topic),
-		log:       log,
+		subName: "kit",
+		client:  client,
+		topic:   client.Topic(topic),
+		log:     log,
 	}
 	for _, opt := range opts {
 		opt(p)

@@ -7,10 +7,16 @@ import (
 	"testing"
 
 	"go.soon.build/kit/pubsub/gcloud"
+
+	"cloud.google.com/go/pubsub"
 )
 
 func TestPublishSubscribe(t *testing.T) {
-	p, err := gcloud.New(context.Background(), "kit-test", "test")
+	client, err := pubsub.NewClient(context.Background(), "kit-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := gcloud.New(context.Background(), "test", client)
 	if err != nil {
 		t.Fatal(err)
 	}
