@@ -1,3 +1,6 @@
+// Common configuration management with [viper](https://github.com/spf13/viper).
+// Supports loading configuration from toml files, auto ENV var bindings and
+// cobra command flag overrides.
 package config
 
 import (

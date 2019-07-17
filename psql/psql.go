@@ -1,3 +1,4 @@
+// Common helpers for managing postgres database connections and migrations.
 package psql
 
 import (

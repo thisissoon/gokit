@@ -1,3 +1,4 @@
+// Common helper constructs for running a gRPC server.
 package grpc
 
 import (
