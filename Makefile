@@ -1,6 +1,12 @@
 # General
 PKG      := go.soon.build/kit
-PKG_LIST := $(shell go list ${PKG}/... | grep -v /vendor/)
+MODULES  := $(shell ls -p | grep /)
+CWD      := $(shell pwd)
+
+# Download dependencies for all modules
+.PHONY: download
+download:
+	@$(foreach module,$(MODULES),cd $(CWD)/$(module) && go mod download;)
 
 # Run test suite
 .PHONY: test
@@ -8,8 +14,11 @@ test:
 ifeq ("$(wildcard $(shell which gocov))","")
 	go get github.com/axw/gocov/gocov
 endif
-	gocov test ${PKG_LIST} | gocov report
+	@$(foreach module,$(MODULES),cd $(CWD)/$(module) && gocov test ./... | gocov report;)
 
 # Run integration tests with gcloud pubsub
 testgcloud:
-	gocov test --tags gcloud ${PKG_LIST} | gocov report
+	@$(foreach module,$(MODULES),cd $(CWD)/$(module) && gocov test --tags gcloud ./... | gocov report;)
+
+lint:
+	@$(foreach module,$(MODULES),cd $(CWD)/$(module) && golangci-lint run;)
