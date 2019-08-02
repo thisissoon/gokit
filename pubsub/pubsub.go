@@ -1,5 +1,5 @@
-// Provides interfaces and provider implementations for pubsub based
-// messaging.
+// Provides a super minimal publish/subscribe interface with backend
+// implementations for different providers
 package pubsub
 
 import (
