@@ -98,25 +98,9 @@ func (p *Gcloud) Close() {
 // Subscribe implements the Subscriber interface for subscribing to a
 // Google Cloud Pubsub topic.
 func (p *Gcloud) Subscribe(ctx context.Context) (<-chan Message, error) {
-	initCtx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
 	c := make(chan Message)
 	sub := p.client.Subscription(p.subName)
 	log := p.log.With().Str("subscription", sub.ID()).Logger()
-	exists, err := sub.Exists(initCtx)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		log.Debug().Msg("creating pubsub subscription")
-		_, err := p.client.CreateSubscription(initCtx, p.subName, pubsub.SubscriptionConfig{
-			Topic:  p.topic,
-			Labels: map[string]string{"app": p.subName},
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
 	go func() {
 		log.Debug().Msg("receiving from subscription")
 		err := sub.Receive(ctx, func(ctx context.Context, m *pubsub.Message) {
