@@ -4,7 +4,6 @@ package gcloud
 import (
 	"context"
 	"os"
-	"time"
 
 	"cloud.google.com/go/pubsub"
 	"github.com/rs/zerolog"
@@ -63,19 +62,6 @@ func New(ctx context.Context, topic string, client *pubsub.Client, opts ...Optio
 	}
 	for _, opt := range opts {
 		opt(p)
-	}
-	initCtx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-	exists, err := p.topic.Exists(initCtx)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		log.Debug().Msg("creating pubsub topic")
-		_, err = client.CreateTopic(initCtx, topic)
-		if err != nil {
-			return nil, err
-		}
 	}
 	return p, nil
 }
