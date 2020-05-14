@@ -25,16 +25,18 @@ import (
 // 		// handle server close err
 // 	}
 type Server struct {
-	Srv     *http.Server
-	Running bool
-	log     zerolog.Logger
+	Srv         *http.Server
+	Running     bool
+	log         zerolog.Logger
+	stopTimeout time.Duration
 }
 
 // New constructs a server
 func New(opts ...Option) *Server {
 	s := &Server{
-		Srv: &http.Server{Addr: ":5000"},
-		log: zerolog.New(os.Stdout),
+		Srv:         &http.Server{Addr: ":5000"},
+		log:         zerolog.New(os.Stdout),
+		stopTimeout: time.Second * 10,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -66,6 +68,14 @@ func WithLogger(l zerolog.Logger) Option {
 func WithHandler(h http.Handler) Option {
 	return func(s *Server) {
 		s.Srv.Handler = h
+	}
+}
+
+// WithStopTimeout returns an Option to configure the duration
+// to wait for connections to terminate on shutdown
+func WithStopTimeout(d time.Duration) Option {
+	return func(s *Server) {
+		s.stopTimeout = d
 	}
 }
 
@@ -104,7 +114,7 @@ func (s *Server) Start() error {
 func (s *Server) Stop() error {
 	if s.Srv != nil {
 		s.log.Debug().Msg("gracefully stopping server")
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, cancel := context.WithTimeout(context.Background(), s.stopTimeout)
 		defer cancel()
 		return s.Srv.Shutdown(ctx)
 	}
