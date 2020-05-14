@@ -29,15 +29,26 @@ func (s *Server) ErrNotFound(w http.ResponseWriter, err error, msg string) {
 	RequestErr(http.StatusNotFound, s.log, w, err, msg)
 }
 
-// RequestErr handles logs an error and writes an error response
-func RequestErr(status int, log zerolog.Logger, w http.ResponseWriter, err error, msg string) {
+// NewErr returns a masked error response with ID and human-readable message.
+// The ID can be used to associate the response with a server log record
+// to reconstruct the full error message.
+func NewErr(status int, msg string) errResponse {
 	errID := makeErrID()
-	log.Error().Str("errID", errID).Err(err).Msg(msg)
-	res := errResponse{
+	return errResponse{
 		Message: msg,
 		Code:    status,
 		ErrID:   errID,
 	}
+}
+
+// RequestErr handles logs an error and writes an error response
+func RequestErr(status int, log zerolog.Logger, w http.ResponseWriter, err error, msg string) {
+	res := NewErr(status, msg)
+	var lvl zerolog.Level
+	if status >= 500 {
+		lvl = zerolog.ErrorLevel
+	}
+	log.WithLevel(lvl).Str("errID", res.ErrID).Err(err).Msg(msg)
 	b, _ := json.Marshal(res)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
