@@ -18,7 +18,7 @@ import (
 //
 // Example:
 // 	srv := http.New()
-// 	if err := srv.Start(); err != nil {
+// 	if err := srv.Start(ctx); err != nil {
 // 		// handle server runtime err
 // 	}
 // 	if err := s.Stop(); err != nil {
@@ -70,7 +70,7 @@ func WithHandler(h http.Handler) Option {
 }
 
 // Start starts the server listening, will block on signal or error
-func (s *Server) Start() error {
+func (s *Server) Start(ctx context.Context) error {
 	errC := make(chan error, 1)
 	// listen
 	go func() {
@@ -88,14 +88,12 @@ func (s *Server) Start() error {
 		close(errC)
 	}()
 
-	// wait for OS signal or runtime error
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT)
+	// wait for ctx done or runtime error
 	select {
 	case err := <-errC:
 		return err
-	case sig := <-stop:
-		s.log.Debug().Str("signal", sig.String()).Msg("signal received")
+	case <-ctx.Done():
+		s.Stop()
 		return nil
 	}
 }
@@ -109,4 +107,21 @@ func (s *Server) Stop() error {
 		return s.Srv.Shutdown(ctx)
 	}
 	return nil
+}
+
+// CtxWithSignal returns a context that completes when one of the
+// os Signals is received. Leaving sig empty will default to SIGTERM, SIGQUIT and SIGINT
+func CtxWithSignal(ctx context.Context, sig ...os.Signal) context.Context {
+	ctx, cancel := context.WithCancel(ctx)
+	stop := make(chan os.Signal, 1)
+	if len(sig) < 1 {
+		sig = []os.Signal{syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT}
+	}
+	signal.Notify(stop, sig...)
+	go func() {
+		<-stop
+		cancel()
+		signal.Stop(stop)
+	}()
+	return ctx
 }
