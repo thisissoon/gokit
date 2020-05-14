@@ -29,6 +29,8 @@ type Server struct {
 	Running     bool
 	log         zerolog.Logger
 	stopTimeout time.Duration
+	handler     http.Handler
+	healthOpt   HealthOptions
 }
 
 // New constructs a server
@@ -41,8 +43,15 @@ func New(opts ...Option) *Server {
 	for _, opt := range opts {
 		opt(s)
 	}
-	if s.Srv.Handler == nil {
-		s.Srv.Handler = s.Health("kit", "")
+	s.Srv.Handler = s.handler
+	if s.handler == nil {
+		s.Srv.Handler = s.Health(HealthOptions{AppName: "kit"})
+	}
+	if s.healthOpt.Path != "" {
+		mux := http.NewServeMux()
+		mux.Handle("/", s.handler)
+		mux.Handle(s.healthOpt.Path, s.Health(s.healthOpt))
+		s.Srv.Handler = mux
 	}
 	return s
 }
@@ -67,7 +76,14 @@ func WithLogger(l zerolog.Logger) Option {
 // WithHandler returns an Option to configure the server's http handler
 func WithHandler(h http.Handler) Option {
 	return func(s *Server) {
-		s.Srv.Handler = h
+		s.handler = h
+	}
+}
+
+// WithHealth returns an Option to configure the server healthcheck endpoint
+func WithHealth(h HealthOptions) Option {
+	return func(s *Server) {
+		s.healthOpt = h
 	}
 }
 

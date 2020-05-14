@@ -7,8 +7,14 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type HealthOptions struct {
+	Path    string
+	AppName string
+	Version string
+}
+
 // Health returns a handler for healthcheck requests
-func (s *Server) Health(app, version string) http.Handler {
+func (s *Server) Health(h HealthOptions) http.Handler {
 	type healthResponse struct {
 		App     string `json:"app"`
 		Version string `json:"version"`
@@ -20,8 +26,8 @@ func (s *Server) Health(app, version string) http.Handler {
 			log = &s.log
 		}
 		b, _ := json.Marshal(healthResponse{
-			App:     app,
-			Version: version,
+			App:     h.AppName,
+			Version: h.Version,
 			Serving: s.Running,
 		})
 		w.Header().Set("Content-Type", "application/json")
