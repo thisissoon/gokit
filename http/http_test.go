@@ -1,8 +1,10 @@
 package http_test
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"syscall"
 	"testing"
 	"time"
@@ -13,8 +15,9 @@ import (
 func TestServer_StartStop(t *testing.T) {
 	s := h.New()
 	stopped := make(chan bool, 1)
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		err := s.Start()
+		err := s.Start(ctx)
 		if err != nil {
 			t.Error(err)
 		}
@@ -40,10 +43,7 @@ func TestServer_StartStop(t *testing.T) {
 	}
 
 	// stop
-	err = syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
-	if err != nil {
-		t.Fatal(err)
-	}
+	cancel()
 	<-stopped
 	err = s.Stop()
 	if err != nil {
@@ -68,5 +68,30 @@ func TestWithHandler(t *testing.T) {
 	s := h.New(h.WithHandler(handler))
 	if s.Srv.Handler == nil {
 		t.Errorf("unexpected handler")
+	}
+}
+
+func TestCtxWithSignal(t *testing.T) {
+	tests := map[string]struct {
+		sigs []os.Signal
+		call syscall.Signal
+	}{
+		"default SIGTERM": {
+			call: syscall.SIGTERM,
+		},
+		"SIGHUP": {
+			sigs: []os.Signal{syscall.SIGHUP},
+			call: syscall.SIGHUP,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx := h.CtxWithSignal(context.Background(), tt.sigs...)
+			err := syscall.Kill(syscall.Getpid(), tt.call)
+			if err != nil {
+				t.Fatal(err)
+			}
+			<-ctx.Done()
+		})
 	}
 }
