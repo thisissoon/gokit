@@ -53,6 +53,44 @@ func TestRequestID(t *testing.T) {
 	}
 }
 
+func TestTraceID(t *testing.T) {
+	testCases := []struct {
+		desc      string
+		context   context.Context
+		fieldName string
+		want      string
+	}{
+		{
+			desc: "trace id from context",
+			context: metadata.NewIncomingContext(context.Background(), metadata.MD{
+				"traceid": []string{"123"},
+			}),
+			fieldName: "traceid",
+			want:      "123",
+		},
+		{
+			desc:      "new id, no metadata",
+			context:   context.Background(),
+			fieldName: "traceid",
+			want:      "",
+		},
+		{
+			desc:      "new id, no trace id field",
+			context:   metadata.NewIncomingContext(context.Background(), metadata.MD{}),
+			fieldName: "traceid",
+			want:      "",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			id := g.TraceID(tc.context, tc.fieldName)
+			if id != tc.want {
+				t.Errorf("mismatching ID's; expected %s, got %s", tc.want, id)
+			}
+		})
+	}
+}
+
 func TestLogUnaryInterceptor(t *testing.T) {
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		log := zerolog.Ctx(ctx)
@@ -68,6 +106,10 @@ func TestLogUnaryInterceptor(t *testing.T) {
 	interceptor := g.LogUnaryInterceptor(
 		zerolog.New(&logWriter),
 		"requestid",
+		g.TraceField{
+			LoggingFieldName: "logging/traceid",
+			RequestFieldName: "traceid",
+		},
 	)
 	_, err := interceptor(
 		context.Background(),
@@ -93,6 +135,9 @@ func TestLogUnaryInterceptor(t *testing.T) {
 	if entries[0]["requestid"] == nil {
 		t.Errorf("missing requestid field")
 	}
+	if entries[0]["logging/traceid"] == nil {
+		t.Errorf("missing traceid field")
+	}
 }
 
 func TestLogStreamInterceptor(t *testing.T) {
@@ -110,6 +155,10 @@ func TestLogStreamInterceptor(t *testing.T) {
 	interceptor := g.LogStreamInterceptor(
 		zerolog.New(&logWriter),
 		"requestid",
+		g.TraceField{
+			LoggingFieldName: "logging/traceid",
+			RequestFieldName: "traceid",
+		},
 	)
 
 	err := interceptor(
@@ -135,6 +184,9 @@ func TestLogStreamInterceptor(t *testing.T) {
 	}
 	if entries[0]["requestid"] == nil {
 		t.Errorf("missing requestid field")
+	}
+	if entries[0]["logging/traceid"] == nil {
+		t.Errorf("missing traceid field")
 	}
 }
 
