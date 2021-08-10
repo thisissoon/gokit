@@ -5,6 +5,8 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"unicode"
@@ -73,6 +75,51 @@ func ReadInConfig(v *viper.Viper, c interface{}, opts ...Option) error {
 		break
 	default:
 		return err
+	}
+	return v.Unmarshal(c)
+}
+
+// ViperWithDir constructs a new viper instance pre-configured with
+// SOON_ defaults which is used to load all config from a directory
+// - TOML format
+// - Loads files from `/etc/name/`
+// - Env vars as `NAME_FIELD`
+func ViperWithDir(name string) (*viper.Viper, string) {
+	v := viper.New()
+	v.SetConfigType("toml")
+	// Set default config paths
+	path := fmt.Sprintf("/etc/%s", name)
+	v.AddConfigPath(path)
+	// Configure env var
+	v.SetEnvPrefix(name)
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	return v, path
+}
+
+// ReadInAllDirConfig reads and merges all config files inside a directory
+func ReadInAllDirConfig(v *viper.Viper, p string, c interface{}, opts ...Option) error {
+	dir, err := os.ReadDir(p)
+	if err != nil {
+		return err
+	}
+	for i, d := range dir {
+		fileName := strings.Split(d.Name(), ".")[0]
+		if filepath.Ext(d.Name()) == ".toml" {
+			v.SetConfigName(fileName)
+			if i == 0 {
+				err = ReadInConfig(v, c, opts...)
+				if err != nil {
+					fmt.Println("error reading cfg", err)
+					return err
+				}
+			} else {
+				err = v.MergeInConfig()
+				if err != nil {
+					fmt.Println("error merging cfg", err)
+					return err
+				}
+			}
+		}
 	}
 	return v.Unmarshal(c)
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"go.soon.build/kit/config"
 )
 
@@ -66,5 +67,53 @@ func TestConfig(t *testing.T) {
 	if c.Log.Env != "env" {
 		// value override with env var from mapstructure tag `TEST_LOG_ENVTEST`
 		t.Errorf("unexpected value for Log.Env; expected %s, got %s", "env", c.Log.Env)
+	}
+}
+
+func TestReadInAllConfig(t *testing.T) {
+	type Log struct {
+		Verbose bool
+		Console bool
+		Level   string
+		Name    string
+		Custom  string `mapstructure:"customTag"`
+		Env     string `mapstructure:"envTest"`
+	}
+	type Config struct {
+		Log Log
+	}
+
+	// example flag override
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	fs.String("name", "blah", "")
+
+	// default config
+	c := Config{
+		Log: Log{
+			Verbose: true,
+		},
+	}
+	v := viper.New()
+	tp := "testdata"
+	v.AddConfigPath(tp)
+	err := config.ReadInAllDirConfig(v, tp, &c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Log.Verbose {
+		// value from default
+		t.Errorf("unexpected value for Log.Verbose; expected %t, got %t", true, c.Log.Verbose)
+	}
+	if !c.Log.Console {
+		// value from first file
+		t.Errorf("unexpected value for Log.Console; expected %t, got %t", true, c.Log.Console)
+	}
+	if c.Log.Level != "info" {
+		// value from first file
+		t.Errorf("unexpected value for Log.Level; expected %s, got %s", "info", c.Log.Level)
+	}
+	if c.Log.Name != "test" {
+		// value from second file
+		t.Errorf("unexpected value for Log.Name; expected %s, got %s", "test", c.Log.Name)
 	}
 }
