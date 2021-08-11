@@ -98,30 +98,35 @@ func ViperWithDir(name string) (*viper.Viper, string) {
 
 // ReadInAllDirConfig reads and merges all config files inside a directory
 func ReadInAllDirConfig(v *viper.Viper, p string, c interface{}, opts ...Option) error {
-	dir, err := os.ReadDir(p)
+	err := ReadInConfig(v, c, opts...)
 	if err != nil {
 		return err
 	}
-	for i, d := range dir {
-		fileName := strings.Split(d.Name(), ".")[0]
-		if filepath.Ext(d.Name()) == ".toml" {
-			v.SetConfigName(fileName)
-			if i == 0 {
-				err = ReadInConfig(v, c, opts...)
-				if err != nil {
-					fmt.Println("error reading cfg", err)
-					return err
-				}
-			} else {
-				err = v.MergeInConfig()
-				if err != nil {
-					fmt.Println("error merging cfg", err)
-					return err
+	if v.ConfigFileUsed() == "" {
+		dir, err := os.ReadDir(p)
+		if err != nil {
+			return err
+		}
+		for i, d := range dir {
+			fileName := strings.Split(d.Name(), ".")[0]
+			if filepath.Ext(d.Name()) == ".toml" {
+				v.SetConfigName(fileName)
+				if i == 0 {
+					err = ReadInConfig(v, c, opts...)
+					if err != nil {
+						return err
+					}
+				} else {
+					err = v.MergeInConfig()
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
+		return v.Unmarshal(c)
 	}
-	return v.Unmarshal(c)
+	return nil
 }
 
 // lowerFirst lowercases the first character of a string
