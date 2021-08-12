@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
 	"go.soon.build/kit/config"
 )
 
@@ -83,37 +84,62 @@ func TestReadInAllConfig(t *testing.T) {
 		Log Log
 	}
 
-	// example flag override
-	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-	fs.String("name", "blah", "")
-
-	// default config
-	c := Config{
-		Log: Log{
-			Verbose: true,
+	tests := map[string]struct {
+		defaultConfig   Config
+		testFileOveride string
+		want            Config
+	}{
+		"merge two configs": {
+			defaultConfig: Config{
+				Log: Log{
+					Verbose: true,
+				},
+			},
+			want: Config{
+				Log: Log{
+					Verbose: true,
+					Console: true,
+					Level:   "info",
+					Custom:  "value",
+					Name:    "test",
+				},
+			},
+		},
+		"override file": {
+			defaultConfig: Config{
+				Log: Log{
+					Verbose: true,
+				},
+			},
+			testFileOveride: "testdata/test.toml",
+			want: Config{
+				Log: Log{
+					Verbose: true,
+					Console: true,
+					Level:   "info",
+					Custom:  "value",
+				},
+			},
 		},
 	}
-	v := viper.New()
-	tp := "testdata"
-	v.AddConfigPath(tp)
-	err := config.ReadInAllDirConfig(v, tp, &c)
-	if err != nil {
-		t.Fatal(err)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// example flag override
+			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			fs.String("name", "blah", "")
+			c := tt.defaultConfig
+			v := viper.New()
+			tp := "testdata"
+			v.AddConfigPath(tp)
+			if tt.testFileOveride != "" {
+				v.SetConfigFile(tt.testFileOveride)
+			}
+			err := config.ReadInAllDirConfig(v, tp, &c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Equal(t, tt.want, c)
+		})
 	}
-	if !c.Log.Verbose {
-		// value from default
-		t.Errorf("unexpected value for Log.Verbose; expected %t, got %t", true, c.Log.Verbose)
-	}
-	if !c.Log.Console {
-		// value from first file
-		t.Errorf("unexpected value for Log.Console; expected %t, got %t", true, c.Log.Console)
-	}
-	if c.Log.Level != "info" {
-		// value from first file
-		t.Errorf("unexpected value for Log.Level; expected %s, got %s", "info", c.Log.Level)
-	}
-	if c.Log.Name != "test" {
-		// value from second file
-		t.Errorf("unexpected value for Log.Name; expected %s, got %s", "test", c.Log.Name)
-	}
+
 }
