@@ -45,6 +45,7 @@ func BindFlag(key string, flag *pflag.Flag) Option {
 // - TOML format
 // - Loads files from `/etc/name/name.toml`, `$HOME/.config/name.toml`
 // - Env vars as `NAME_FIELD`
+// - Names that are hyphenated will have the hyphens removed e.g. "new-project" would be accessed "NEWPROJECT"
 func ViperWithDefaults(name string) *viper.Viper {
 	v := viper.New()
 	v.SetConfigType("toml")
@@ -52,9 +53,7 @@ func ViperWithDefaults(name string) *viper.Viper {
 	// Set default config paths
 	v.AddConfigPath(fmt.Sprintf("/etc/%s", name))
 	v.AddConfigPath("$HOME/.config")
-	// Configure env var
-	v.SetEnvPrefix(name)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	setEnv(v, name)
 	return v
 }
 
@@ -84,15 +83,14 @@ func ReadInConfig(v *viper.Viper, c interface{}, opts ...Option) error {
 // - TOML format
 // - Loads files from `/etc/name/`
 // - Env vars as `NAME_FIELD`
+// - Names that are hyphenated will have the hyphens removed e.g. "new-project" would be accessed "NEWPROJECT"
 func ViperWithDir(name string) (*viper.Viper, string) {
 	v := viper.New()
 	v.SetConfigType("toml")
 	// Set default config paths
 	path := fmt.Sprintf("/etc/%s", name)
 	v.AddConfigPath(path)
-	// Configure env var
-	v.SetEnvPrefix(name)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	setEnv(v, name)
 	return v, path
 }
 
@@ -175,4 +173,10 @@ func bindEnvs(v *viper.Viper, iface interface{}, parts ...string) error {
 		}
 	}
 	return nil
+}
+
+func setEnv(v *viper.Viper, name string) {
+	envPrefix := strings.ReplaceAll(name, "-", "")
+	v.SetEnvPrefix(envPrefix)
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 }
