@@ -1,7 +1,7 @@
 # Golang CircleCI 2.0 configuration file
 #
 # Check https://circleci.com/docs/2.0/language-go/ for more details
-version: 2
+version: 2.1
 jobs:
   build:
     docker:
@@ -11,12 +11,29 @@ jobs:
       - run:
           name: install dependencies
           command: make download
+  lint:
+    docker:
+      - image: golangci/golangci-lint:v1.12.5
+    steps:
+      - checkout
       - run:
-          name:  lint
           command: |
-            wget -O - -q https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s v1.12.5
             export PATH=$(pwd)/bin:$PATH
+            make download
             make lint
+  test:
+    docker:
+      - image: circleci/golang:1.11.4
+    steps:
+      - checkout
       - run:
-          name: test
-          command: make test
+          command: |
+            make download
+            make test
+
+workflows:
+  build_lint_test:
+    jobs:
+      - build
+      - lint
+      - test
