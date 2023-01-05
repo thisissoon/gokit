@@ -119,8 +119,7 @@ func (s *Server) Start(ctx context.Context) error {
 	case err := <-errC:
 		return err
 	case <-ctx.Done():
-		s.Stop()
-		return nil
+		return s.Stop()
 	}
 }
 
