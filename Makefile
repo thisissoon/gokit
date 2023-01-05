@@ -12,7 +12,7 @@ download:
 .PHONY: test
 test:
 ifeq ("$(wildcard $(shell which gocov))","")
-	go get github.com/axw/gocov/gocov
+	go install github.com/axw/gocov/gocov@v1.1.0
 endif
 	@$(foreach module,$(MODULES),cd $(CWD)/$(module) && gocov test ./... | gocov report;)
 
