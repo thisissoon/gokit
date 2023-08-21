@@ -40,6 +40,80 @@ A super minimal publish/subscribe interface with backend implementations for dif
 go get go.soon.build/kit/pubsub
 ```
 
+### Tracing
+
+Small, opinionated wrappers and helpers for easily setting up tracing in a streamlined fashion.
+
+Currently only supports Google Cloud's tracing service as a target, using OpenTelemtry.
+
+```
+go get go.soon.build/kit/tracing/otel
+```
+
+Please note that currently this package mainly revolves around setting up the OpenTelemtry SDK, and actual instrumentation of an application should (mostly) make use of existing packages such as otelhttp, otelgrpc, otel itself, etc.
+
+The main helper method for actually creating spans is `OtelProvider.StartSpan` as there is no direct equivalent for creating a span directly from just a context object within the native SDK.
+
+Here are some example snippets:
+
+```go
+// Initial setup
+// It is recommended that the provider is placed as a global variable
+provider, err := NewOtelProvider("service-name",
+    WithServiceNamespace("important-project"),
+    WithServiceVersion("0.1.0"),
+    WithGcpExporter("my-gcp-project-id"),
+)
+if err != nil {
+    return err
+}
+
+cleanup, err := provider.SetupGlobalState(context.TODO())
+if err != nil {
+    return err
+}
+defer cleanup()
+
+// Getting the current span from a context (normal OTEL SDK)
+span := trace.SpanFromContext(ctx)
+span.RecordError(...)
+yada yada
+
+// Creating a new span using a context (using this library)
+ctx, span := provider.StartSpan(ctx, "span name")
+defer span.End()
+
+// Instrumenting a HTTP handler after setup is complete (otelhttp library)
+handler := http.HandlerFunc(...)
+wrapper := otelhttp.NewHandler(handler, "/myEndpoint")
+
+// Instrumenting a HTTP request (otelhttp library)
+client := &http.Client{
+    Transport: otelhttp.NewTransport(http.DefaultTransport),
+    Timeout:   time.Second * 30,
+}
+req := http.NewRequestWithContext(ctx, ...)
+res, err := client.Do(req)
+
+// Instrumenting a GRPC server (otelgrpc library)
+srv := grpc.NewServer(
+    grpc.ChainUnaryInterceptor(
+        otelgrpc.UnaryServerInterceptor(),
+    ),
+    grpc.ChainStreamInterceptor(
+        otelgrpc.StreamServerInterceptor(),
+    ),
+)
+
+// Instrumenting a GRPC client (otelgrpc library)
+conn, err := grpc.DialContext(
+    ctx,
+    addr,
+    grpc.WithChainStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+    grpc.WithChainUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+)
+```
+
 ## Development
 
 ### Tests
