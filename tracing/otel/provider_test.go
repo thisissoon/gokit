@@ -188,12 +188,12 @@ func TestGetTracerName(t *testing.T) {
 	assert.Equal(t, "service", provider.getTracerName())
 }
 
-func TestStartSpan(t *testing.T) {
+func TestStart(t *testing.T) {
 	providerMutex.Lock()
 	defer providerMutex.Unlock()
 	testExporter.Reset()
 
-	ctx, span := testProvider.StartSpan(context.Background(), "testSpan")
+	ctx, span := testProvider.Start(context.Background(), "testSpan")
 	assert.NotNil(t, ctx)
 	assert.True(t, span.IsRecording())
 	span.End()
