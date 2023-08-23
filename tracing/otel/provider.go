@@ -30,6 +30,8 @@ type OtelProvider struct {
 	exporter sdktrace.SpanExporter
 }
 
+var _ trace.Tracer = &OtelProvider{}
+
 // Typical option function pattern
 type OtelProviderOption func(*OtelProvider) error
 
@@ -180,7 +182,7 @@ func (o *OtelProvider) SetupGlobalState(ctx context.Context) (CleanupFunc, error
 // and then uses it to start a new span.
 //
 // If you're interested in further details, please see the `Tracer.Start` function from the OTEL SDK.
-func (o *OtelProvider) StartSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+func (o *OtelProvider) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return o.tracerFromContext(ctx).Start(ctx, spanName, opts...)
 }
 
