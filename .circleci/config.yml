@@ -13,14 +13,14 @@ jobs:
           command: make download
   lint:
     docker:
-      - image: golangci/golangci-lint:v1.50.0
+      - image: golangci/golangci-lint:v1.54.0
     steps:
       - checkout
       - run:
           command: make lint
   test:
     docker:
-      - image: golang:1.19.4-buster
+      - image: golang:1.21.1-bookworm
     steps:
       - checkout
       - run:
