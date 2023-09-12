@@ -58,7 +58,6 @@ Here are some example snippets:
 
 ```go
 // Initial setup
-// It is recommended that the provider is placed as a global variable
 provider, err := NewOtelProvider("service-name",
     WithServiceNamespace("important-project"),
     WithServiceVersion("0.1.0"),
@@ -106,11 +105,30 @@ srv := grpc.NewServer(
 )
 
 // Instrumenting a GRPC client (otelgrpc library)
-conn, err := grpc.DialContext(
+conn, err := grpc.DialContext( // Alternatively: grpckit.NewClient
     ctx,
     addr,
     grpc.WithChainStreamInterceptor(otelgrpc.StreamClientInterceptor()),
     grpc.WithChainUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+)
+
+// Creating a dummy tracer for unittests (normal OTEL SDK)
+tp := trace.NewNoopTracerProvider().Tracer("")
+
+// Recording an error in a way that GCP Cloud Trace likes (this library)
+err := errors.New("blah")
+span := ...
+otelkit.SpanRecordError(span, err, "when decoding JSON")
+
+// Preventing traces from occurring on certain grpc endpoints (this library)
+srv := grpc.NewServer(
+    grpc.ChainUnaryInterceptor(
+        otelgrpc.UnaryServerInterceptor(
+            otelgrpc.WithInterceptorFilter(
+                otelkit.FilterMethods("/abc.Service/Method", "/def.Service/Method")
+            )
+        ),
+    ),
 )
 ```
 
