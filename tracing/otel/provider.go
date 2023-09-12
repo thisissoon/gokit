@@ -203,7 +203,7 @@ func (o *OtelProvider) createResource(ctx context.Context) (*resource.Resource, 
 
 	opts := append(
 		o.resourceOptions,
-		resource.WithTelemetrySDK(),
+		// resource.WithTelemetrySDK(),
 		resource.WithAttributes(attribs...),
 	)
 
