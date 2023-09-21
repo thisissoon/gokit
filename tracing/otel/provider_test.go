@@ -1,11 +1,13 @@
 package otel
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"sync"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -50,6 +52,7 @@ func TestOptions(t *testing.T) {
 			expected: &OtelProvider{
 				serviceName:      serviceName,
 				serviceNamespace: "test-namespace",
+				getTraceLogger:   &noopTraceLog{},
 			},
 		},
 		"WithServiceVersion": {
@@ -57,13 +60,15 @@ func TestOptions(t *testing.T) {
 			expected: &OtelProvider{
 				serviceName:    serviceName,
 				serviceVersion: "v1.0.0",
+				getTraceLogger: &noopTraceLog{},
 			},
 		},
 		"WithTracerName": {
 			options: []OtelProviderOption{WithTracerName("go.soon.build/kit/tracing/otel")},
 			expected: &OtelProvider{
-				serviceName: serviceName,
-				tracerName:  "go.soon.build/kit/tracing/otel",
+				serviceName:    serviceName,
+				tracerName:     "go.soon.build/kit/tracing/otel",
+				getTraceLogger: &noopTraceLog{},
 			},
 		},
 		"WithGlobalAttributes": {
@@ -87,6 +92,7 @@ func TestOptions(t *testing.T) {
 						Value: attribute.BoolValue(false),
 					},
 				},
+				getTraceLogger: &noopTraceLog{},
 			},
 		},
 		"WithResourceOptions": {
@@ -104,6 +110,7 @@ func TestOptions(t *testing.T) {
 					resource.WithOS(),
 					resource.WithOSDescription(),
 				},
+				getTraceLogger: &noopTraceLog{},
 			},
 		},
 		"WithTracerProviderOptions": {
@@ -192,7 +199,11 @@ func TestStart(t *testing.T) {
 	providerMutex.Lock()
 	defer providerMutex.Unlock()
 	testExporter.Reset()
-
+	mw := bytes.NewBufferString("")
+	testLog := zerolog.New(mw).With().Bool("testLogger", true).Logger()
+	testProvider.getTraceLogger = &mockTraceLogger{
+		ret: &testLog,
+	}
 	ctx, span := testProvider.Start(context.Background(), "testSpan")
 	assert.NotNil(t, ctx)
 	assert.True(t, span.IsRecording())
@@ -200,4 +211,17 @@ func TestStart(t *testing.T) {
 	flushTestSpans()
 
 	assert.Len(t, testExporter.GetSpans(), 1)
+
+	l := zerolog.Ctx(ctx)
+	l.Info().Send()
+	assert.Equal(t, `{"level":"info","testLogger":true}
+`, mw.String())
+}
+
+type mockTraceLogger struct {
+	ret *zerolog.Logger
+}
+
+func (m *mockTraceLogger) LogFromCtx(ctx context.Context) *zerolog.Logger {
+	return m.ret
 }

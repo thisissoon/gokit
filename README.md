@@ -130,6 +130,15 @@ srv := grpc.NewServer(
         ),
     ),
 )
+
+// linking logs to a span
+provider, err := NewOtelProvider("service-name",
+	otelkit.WithGCPTraceLogger("gcp-project-id"),
+)
+ctx, span := s.tracer.Start(stream.Context(), "UpdateRedirects")
+defer span.End()
+log := zerolog.Ctx(ctx)
+log.Info().Msg("this will including the span and trace id")
 ```
 
 ## Development

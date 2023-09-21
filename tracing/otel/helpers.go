@@ -1,6 +1,10 @@
 package otel
 
 import (
+	"context"
+	"fmt"
+
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -20,4 +24,37 @@ func SpanRecordError(span trace.Span, err error, description string, eventOption
 		trace.WithAttributes(attribute.String("exception.description", description)),
 	)
 	span.RecordError(err, eventOptions...)
+}
+
+var defaultGCPTraceLog = gcpTraceLog{
+	spanFieldName:  "logging.googleapis.com/spanId",
+	traceFieldName: "logging.googleapis.com/trace",
+}
+
+type gcpTraceLog struct {
+	traceFieldName string
+	spanFieldName  string
+	gcpProjectID   string
+}
+
+// LogFromCtx returns a log from the provided context. It adds GCP trace and span fields so the log can be associated with cloud tracing
+func (tl *gcpTraceLog) LogFromCtx(ctx context.Context) *zerolog.Logger {
+	log := zerolog.Ctx(ctx)
+	span := trace.SpanFromContext(ctx)
+	fields := map[string]interface{}{}
+	if span.SpanContext().HasSpanID() {
+		fields[tl.spanFieldName] = span.SpanContext().SpanID()
+	}
+	if span.SpanContext().HasTraceID() && tl.gcpProjectID != "" {
+		fields[tl.traceFieldName] = fmt.Sprintf("projects/%s/traces/%s", tl.gcpProjectID, span.SpanContext().TraceID())
+	}
+	l := log.With().Fields(fields).Logger()
+	return &l
+}
+
+type noopTraceLog struct{}
+
+// LogFromCtx
+func (tl *noopTraceLog) LogFromCtx(ctx context.Context) *zerolog.Logger {
+	return zerolog.Ctx(ctx)
 }

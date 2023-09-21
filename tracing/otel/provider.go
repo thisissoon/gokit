@@ -4,6 +4,7 @@ import (
 	"context"
 
 	gcpexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/detectors/gcp"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
@@ -28,6 +29,8 @@ type OtelProvider struct {
 	tracerProviderOptions []sdktrace.TracerProviderOption
 
 	exporter sdktrace.SpanExporter
+
+	getTraceLogger getTraceLogger
 }
 
 var _ trace.Tracer = &OtelProvider{}
@@ -44,6 +47,7 @@ type CleanupFunc func()
 func NewOtelProvider(serviceName string, opts ...OtelProviderOption) (*OtelProvider, error) {
 	provider := new(OtelProvider)
 	provider.serviceName = serviceName
+	provider.getTraceLogger = &noopTraceLog{}
 
 	for _, opt := range opts {
 		if err := opt(provider); err != nil {
@@ -105,6 +109,16 @@ func WithResourceOptions(opts ...resource.Option) OtelProviderOption {
 func WithTracerProviderOptions(opts ...sdktrace.TracerProviderOption) OtelProviderOption {
 	return func(op *OtelProvider) error {
 		op.tracerProviderOptions = append(op.tracerProviderOptions, opts...)
+		return nil
+	}
+}
+
+// Sets the trace logger to use GCP
+func WithGCPTraceLogger(gcpProject string) OtelProviderOption {
+	return func(op *OtelProvider) error {
+		tl := &defaultGCPTraceLog
+		tl.gcpProjectID = gcpProject
+		op.getTraceLogger = tl
 		return nil
 	}
 }
@@ -183,7 +197,10 @@ func (o *OtelProvider) SetupGlobalState(ctx context.Context) (CleanupFunc, error
 //
 // If you're interested in further details, please see the `Tracer.Start` function from the OTEL SDK.
 func (o *OtelProvider) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return o.tracerFromContext(ctx).Start(ctx, spanName, opts...)
+	ctx, span := o.tracerFromContext(ctx).Start(ctx, spanName, opts...)
+	log := o.getTraceLogger.LogFromCtx(ctx)
+	ctx = log.WithContext(ctx)
+	return ctx, span
 }
 
 // Creates a new resource using a bunch of the configuration options provided, as well
@@ -231,4 +248,8 @@ func (o *OtelProvider) tracerFromContext(ctx context.Context) trace.Tracer {
 	}
 
 	return provider.Tracer(o.getTracerName())
+}
+
+type getTraceLogger interface {
+	LogFromCtx(ctx context.Context) *zerolog.Logger
 }
