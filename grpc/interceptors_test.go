@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
 	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -102,41 +102,58 @@ func TestLogUnaryInterceptor(t *testing.T) {
 		}
 		return nil, nil
 	}
-	logWriter := bytes.Buffer{}
-	interceptor := g.LogUnaryInterceptor(
-		zerolog.New(&logWriter),
-		"requestid",
-		g.TraceField{
-			LoggingFieldName: "logging/traceid",
-			RequestFieldName: "traceid",
+	tests := map[string]struct {
+		traceField             g.TraceField
+		requestTraceField      string
+		requestTraceFieldValue string
+		xTraceLoggingField     string
+	}{
+		"use the default traceField values for an empty traceField": {
+			traceField:             g.TraceField{},
+			requestTraceField:      "x-b3-traceid",
+			requestTraceFieldValue: "trace-id",
+			xTraceLoggingField:     "logging.googleapis.com/trace",
 		},
-	)
-	_, err := interceptor(
-		context.Background(),
-		"request",
-		&grpc.UnaryServerInfo{FullMethod: "list"},
-		handler,
-	)
-	if err != nil {
-		t.Fatal(err)
+		"override the trace field with given values": {
+			traceField: g.TraceField{
+				LoggingFieldName: "logging/traceid",
+				RequestFieldName: "traceid",
+			},
+			requestTraceField:      "traceid",
+			requestTraceFieldValue: "trace-id",
+			xTraceLoggingField:     "logging/traceid",
+		},
 	}
-	entries := logEntriesFromBuffer(logWriter)
-	expMethod := "list"
-	if entries[0]["grpc.method"] != expMethod {
-		t.Errorf("unexpected grpc method; expected %s, got %s", expMethod, entries[0]["grpc.method"])
-	}
-	expMsg := "handled gRPC unary request"
-	if entries[0]["message"] != expMsg {
-		t.Errorf("unexpected log message; expected %s, got %s", expMsg, entries[0]["message"])
-	}
-	if entries[0]["grpc.duration"] == nil {
-		t.Errorf("missing grpc.duration field")
-	}
-	if entries[0]["requestid"] == nil {
-		t.Errorf("missing requestid field")
-	}
-	if entries[0]["logging/traceid"] == nil {
-		t.Errorf("missing traceid field")
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			logWriter := bytes.Buffer{}
+			interceptor := g.LogUnaryInterceptor(
+				zerolog.New(&logWriter),
+				"requestid",
+				tt.traceField,
+			)
+			// set trace id to the context
+			md := metadata.New(map[string]string{
+				tt.requestTraceField: tt.requestTraceFieldValue,
+			})
+			ctx := metadata.NewIncomingContext(context.Background(), md)
+			_, err := interceptor(
+				ctx,
+				"request",
+				&grpc.UnaryServerInfo{FullMethod: "list"},
+				handler,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			entries := logEntriesFromBuffer(t, logWriter)
+			assert.Equal(t, "list", entries[0]["grpc.method"], "unexpected grpc method")
+			assert.Equal(t, "handled gRPC unary request", entries[0]["message"], "unexpected log message")
+			assert.NotNil(t, entries[0]["grpc.duration"], "missing grpc.duration field")
+			assert.NotNil(t, entries[0]["requestid"], "missing requestid field")
+			assert.NotNil(t, entries[0][tt.xTraceLoggingField], "missing trace log field")
+			assert.Equal(t, tt.requestTraceFieldValue, entries[0][tt.xTraceLoggingField])
+		})
 	}
 }
 
@@ -151,53 +168,71 @@ func TestLogStreamInterceptor(t *testing.T) {
 		}
 		return nil
 	}
-	logWriter := bytes.Buffer{}
-	interceptor := g.LogStreamInterceptor(
-		zerolog.New(&logWriter),
-		"requestid",
-		g.TraceField{
-			LoggingFieldName: "logging/traceid",
-			RequestFieldName: "traceid",
+	tests := map[string]struct {
+		traceField             g.TraceField
+		requestTraceField      string
+		requestTraceFieldValue string
+		xTraceLoggingField     string
+	}{
+		"use the default traceField values for an empty traceField": {
+			traceField:             g.TraceField{},
+			requestTraceField:      "x-b3-traceid",
+			requestTraceFieldValue: "trace-id",
+			xTraceLoggingField:     "logging.googleapis.com/trace",
 		},
-	)
-
-	err := interceptor(
-		"request",
-		&g.WrappedServerStream{WrappedContext: metadata.NewIncomingContext(context.Background(), metadata.MD{})},
-		&grpc.StreamServerInfo{FullMethod: "list"},
-		handler,
-	)
-	if err != nil {
-		t.Fatal(err)
+		"override the trace field with given values": {
+			traceField: g.TraceField{
+				LoggingFieldName: "logging/traceid",
+				RequestFieldName: "traceid",
+			},
+			requestTraceField:      "traceid",
+			requestTraceFieldValue: "trace-id",
+			xTraceLoggingField:     "logging/traceid",
+		},
 	}
-	entries := logEntriesFromBuffer(logWriter)
-	expMethod := "list"
-	if entries[0]["grpc.method"] != expMethod {
-		t.Errorf("unexpected grpc method; expected %s, got %s", expMethod, entries[0]["grpc.method"])
-	}
-	expMsg := "handled gRPC stream request"
-	if entries[0]["message"] != expMsg {
-		t.Errorf("unexpected log message; expected %s, got %s", expMsg, entries[0]["message"])
-	}
-	if entries[0]["grpc.duration"] == nil {
-		t.Errorf("missing grpc.duration field")
-	}
-	if entries[0]["requestid"] == nil {
-		t.Errorf("missing requestid field")
-	}
-	if entries[0]["logging/traceid"] == nil {
-		t.Errorf("missing traceid field")
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			logWriter := bytes.Buffer{}
+			interceptor := g.LogStreamInterceptor(
+				zerolog.New(&logWriter),
+				"requestid",
+				tt.traceField,
+			)
+			// set trace id to the context
+			md := metadata.New(map[string]string{
+				tt.requestTraceField: tt.requestTraceFieldValue,
+			})
+			ctx := metadata.NewIncomingContext(context.Background(), md)
+			err := interceptor(
+				"request",
+				&g.WrappedServerStream{WrappedContext: ctx},
+				&grpc.StreamServerInfo{FullMethod: "list"},
+				handler,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			entries := logEntriesFromBuffer(t, logWriter)
+			assert.Equal(t, "list", entries[0]["grpc.method"], "unexpected grpc method")
+			assert.Equal(t, "handled gRPC stream request", entries[0]["message"], "unexpected log message")
+			assert.NotNil(t, entries[0]["grpc.duration"], "missing grpc.duration field")
+			assert.NotNil(t, entries[0]["requestid"], "missing requestid field")
+			assert.NotNil(t, entries[0][tt.xTraceLoggingField], "missing trace log field")
+			assert.Equal(t, tt.requestTraceFieldValue, entries[0][tt.xTraceLoggingField])
+		})
 	}
 }
 
-func logEntriesFromBuffer(buff bytes.Buffer) []map[string]interface{} {
+func logEntriesFromBuffer(t *testing.T, buff bytes.Buffer) []map[string]interface{} {
 	parts := strings.Split(buff.String(), "\n")
-	var entries []map[string]interface{}
+	entries := make([]map[string]interface{}, len(parts))
 	for i, e := range parts {
-		entries = append(entries, map[string]interface{}{})
-		err := json.Unmarshal([]byte(e), &entries[i])
-		if err != nil {
-			log.Print(err)
+		entries[i] = map[string]interface{}{}
+		if e != "" {
+			err := json.Unmarshal([]byte(e), &entries[i])
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	return entries

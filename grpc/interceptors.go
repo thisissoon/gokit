@@ -46,6 +46,7 @@ func TraceID(ctx context.Context, fieldName string) string {
 
 // LogUnaryInterceptor returns grpc middleware to log unary method calls
 func LogUnaryInterceptor(l zerolog.Logger, fieldName string, tf TraceField) grpc.UnaryServerInterceptor {
+	tf = tf.mergeWithDefaults()
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		var start = time.Now().UTC()
 		log := l.With().Fields(map[string]interface{}{
@@ -77,6 +78,7 @@ func (w *WrappedServerStream) Context() context.Context {
 
 // LogStreamInterceptor returns grpc middleware to log stream method calls
 func LogStreamInterceptor(l zerolog.Logger, fieldName string, tf TraceField) grpc.StreamServerInterceptor {
+	tf = tf.mergeWithDefaults()
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		var start = time.Now().UTC()
 		log := l.With().Fields(map[string]interface{}{
@@ -94,4 +96,14 @@ func LogStreamInterceptor(l zerolog.Logger, fieldName string, tf TraceField) grp
 			Msg("handled gRPC stream request")
 		return handler(srv, ws)
 	}
+}
+
+func (tf TraceField) mergeWithDefaults() TraceField {
+	if tf.RequestFieldName == "" {
+		tf.RequestFieldName = "x-b3-traceid"
+	}
+	if tf.LoggingFieldName == "" {
+		tf.LoggingFieldName = "logging.googleapis.com/trace"
+	}
+	return tf
 }
