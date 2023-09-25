@@ -114,10 +114,9 @@ func WithTracerProviderOptions(opts ...sdktrace.TracerProviderOption) OtelProvid
 }
 
 // Sets the trace logger to use GCP
-func WithGCPTraceLogger(gcpProject string) OtelProviderOption {
+func WithGCPTraceLogger() OtelProviderOption {
 	return func(op *OtelProvider) error {
 		tl := &defaultGCPTraceLog
-		tl.gcpProjectID = gcpProject
 		op.getTraceLogger = tl
 		return nil
 	}
