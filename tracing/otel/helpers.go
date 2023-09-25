@@ -2,7 +2,6 @@ package otel
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
@@ -34,7 +33,6 @@ var defaultGCPTraceLog = gcpTraceLog{
 type gcpTraceLog struct {
 	traceFieldName string
 	spanFieldName  string
-	gcpProjectID   string
 }
 
 // LogFromCtx returns a log from the provided context. It adds GCP trace and span fields so the log can be associated with cloud tracing
@@ -45,8 +43,8 @@ func (tl *gcpTraceLog) LogFromCtx(ctx context.Context) *zerolog.Logger {
 	if span.SpanContext().HasSpanID() {
 		fields[tl.spanFieldName] = span.SpanContext().SpanID()
 	}
-	if span.SpanContext().HasTraceID() && tl.gcpProjectID != "" {
-		fields[tl.traceFieldName] = fmt.Sprintf("projects/%s/traces/%s", tl.gcpProjectID, span.SpanContext().TraceID())
+	if span.SpanContext().HasTraceID() {
+		fields[tl.traceFieldName] = span.SpanContext().TraceID()
 	}
 	l := log.With().Fields(fields).Logger()
 	return &l

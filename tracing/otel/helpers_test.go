@@ -30,21 +30,19 @@ func Test_gcpTraceLog_LogFromCtx(t *testing.T) {
 			gcpTraceLog: &gcpTraceLog{
 				traceFieldName: "traceFieldName",
 				spanFieldName:  "spanFieldName",
-				gcpProjectID:   "gcpProjectId",
 			},
 			args: args{
 				ctx: context.Background(),
 			},
 			traceID: testTraceID,
 			spanID:  testSpanID,
-			xLogs: `{"level":"info","spanFieldName":"0102030405060708","traceFieldName":"projects/gcpProjectId/traces/0102030405060708090a0b0c0d0e0f10"}
+			xLogs: `{"level":"info","spanFieldName":"0102030405060708","traceFieldName":"0102030405060708090a0b0c0d0e0f10"}
 `,
 		},
 		"not add traceID if it doesn't exist": {
 			gcpTraceLog: &gcpTraceLog{
 				traceFieldName: "traceFieldName",
 				spanFieldName:  "spanFieldName",
-				gcpProjectID:   "gcpProjectId",
 			},
 			args: args{
 				ctx: context.Background(),
@@ -58,28 +56,13 @@ func Test_gcpTraceLog_LogFromCtx(t *testing.T) {
 			gcpTraceLog: &gcpTraceLog{
 				traceFieldName: "traceFieldName",
 				spanFieldName:  "spanFieldName",
-				gcpProjectID:   "gcpProjectId",
 			},
 			args: args{
 				ctx: context.Background(),
 			},
 			traceID: testTraceID,
 			spanID:  "",
-			xLogs: `{"level":"info","traceFieldName":"projects/gcpProjectId/traces/0102030405060708090a0b0c0d0e0f10"}
-`,
-		},
-		"not add traceID if it gcp project doesn't exist": {
-			gcpTraceLog: &gcpTraceLog{
-				traceFieldName: "traceFieldName",
-				spanFieldName:  "spanFieldName",
-				gcpProjectID:   "",
-			},
-			args: args{
-				ctx: context.Background(),
-			},
-			traceID: testTraceID,
-			spanID:  testSpanID,
-			xLogs: `{"level":"info","spanFieldName":"0102030405060708"}
+			xLogs: `{"level":"info","traceFieldName":"0102030405060708090a0b0c0d0e0f10"}
 `,
 		},
 	}
