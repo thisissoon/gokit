@@ -175,7 +175,6 @@ func (o *OtelProvider) SetupGlobalState(ctx context.Context) (CleanupFunc, error
 	opts := append(
 		o.tracerProviderOptions,
 		sdktrace.WithBatcher(o.exporter),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithResource(res),
 	)
 	provider := sdktrace.NewTracerProvider(opts...)
