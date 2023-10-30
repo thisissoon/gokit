@@ -218,6 +218,86 @@ func TestStart(t *testing.T) {
 `, mw.String())
 }
 
+func TestSamplerFromEnv(t *testing.T) {
+	providerMutex.Lock()
+	defer func() {
+		os.Unsetenv(otelSamplerEnvVar)
+		os.Unsetenv(otelSamplerArgEnvVar)
+		providerMutex.Unlock()
+	}()
+
+	cases := map[string]struct {
+		sampler      string
+		samplerArg   string
+		descContains string
+		shouldError  bool
+	}{
+		"traceidratio": {
+			sampler:      "traceidratio",
+			descContains: "AlwaysOnSampler", // quirk: traceidratio becomes `AlwaysOnSampler` when arg is 1.0
+		},
+		"traceidratio_sampled": {
+			sampler:      "traceidratio",
+			samplerArg:   "0.99",
+			descContains: "TraceIDRatioBased",
+		},
+		"always_off": {
+			sampler:      "always_off",
+			descContains: "AlwaysOffSampler",
+		},
+		"always_on": {
+			sampler:      "always_on",
+			descContains: "AlwaysOnSampler",
+		},
+		"default sampler": {
+			descContains: "AlwaysOnSampler",
+		},
+		"parentbased_traceidratio": {
+			sampler:      "parentbased_traceidratio",
+			descContains: "AlwaysOnSampler", // quirk: traceidratio becomes `AlwaysOnSampler` when arg is 1.0
+		},
+		"parentbased_traceidratio_sampled": {
+			sampler:      "parentbased_traceidratio",
+			samplerArg:   "0.99",
+			descContains: "TraceIDRatioBased",
+		},
+		"parentbased_always_off": {
+			sampler:      "parentbased_always_off",
+			descContains: "AlwaysOffSampler",
+		},
+		"parentbased_always_on": {
+			sampler:      "parentbased_always_on",
+			descContains: "AlwaysOnSampler",
+		},
+		"float parse error": {
+			sampler:     "traceidratio",
+			samplerArg:  "l.01",
+			shouldError: true,
+		},
+		"unknown sampler error": {
+			sampler:     "foo",
+			shouldError: true,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			os.Setenv(otelSamplerEnvVar, tc.sampler)
+			os.Setenv(otelSamplerArgEnvVar, tc.samplerArg)
+			sampler, err := samplerFromEnv()
+
+			if tc.shouldError {
+				assert.Error(t, err)
+				assert.Nil(t, sampler)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, sampler)
+				assert.Contains(t, sampler.Description(), tc.descContains)
+			}
+		})
+	}
+}
+
 type mockTraceLogger struct {
 	ret *zerolog.Logger
 }

@@ -2,6 +2,9 @@ package otel
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"strconv"
 
 	gcpexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
 	"github.com/rs/zerolog"
@@ -40,6 +43,11 @@ type OtelProviderOption func(*OtelProvider) error
 
 // Cleanup function to be defer-called when returned
 type CleanupFunc func()
+
+const (
+	otelSamplerEnvVar    = "OTEL_TRACES_SAMPLER"
+	otelSamplerArgEnvVar = "OTEL_TRACES_SAMPLER_ARG"
+)
 
 // Constructs a new OtelProvider using the given options to configure the instance.
 //
@@ -172,10 +180,16 @@ func (o *OtelProvider) SetupGlobalState(ctx context.Context) (CleanupFunc, error
 		return func() {}, err
 	}
 
+	sampler, err := samplerFromEnv()
+	if err != nil {
+		return func() {}, err
+	}
+
 	opts := append(
 		o.tracerProviderOptions,
 		sdktrace.WithBatcher(o.exporter),
 		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sampler),
 	)
 	provider := sdktrace.NewTracerProvider(opts...)
 	otel.SetTracerProvider(provider)
@@ -250,4 +264,41 @@ func (o *OtelProvider) tracerFromContext(ctx context.Context) trace.Tracer {
 
 type getTraceLogger interface {
 	LogFromCtx(ctx context.Context) *zerolog.Logger
+}
+
+// Despite OTEL SDK's documentation, it doesn't seem to want to use the standard
+// OTEL env vars when deployed into GKE. Instead of trying to debug/find
+// the obscure piece of documentation on why this happens, we've instead
+// decided to handle some of the env vars ourself.
+func samplerFromEnv() (sdktrace.Sampler, error) {
+	sampler := os.Getenv(otelSamplerEnvVar)
+	samplerArg := os.Getenv(otelSamplerArgEnvVar)
+	samplerArgFloat := 1.0
+
+	if samplerArg != "" {
+		var err error
+		samplerArgFloat, err = strconv.ParseFloat(samplerArg, 32)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	switch sampler {
+	case "traceidratio":
+		return sdktrace.TraceIDRatioBased(samplerArgFloat), nil
+	case "always_off":
+		return sdktrace.NeverSample(), nil
+	case "always_on":
+		return sdktrace.AlwaysSample(), nil
+	case "parentbased_traceidratio":
+		return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(samplerArgFloat)), nil
+	case "parentbased_always_on":
+		return sdktrace.ParentBased(sdktrace.AlwaysSample()), nil
+	case "parentbased_always_off":
+		return sdktrace.ParentBased(sdktrace.NeverSample()), nil
+	case "":
+		return sdktrace.AlwaysSample(), nil
+	default:
+		return nil, fmt.Errorf("unknown value for %s: %s", otelSamplerEnvVar, sampler)
+	}
 }
