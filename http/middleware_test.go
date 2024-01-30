@@ -118,10 +118,33 @@ func TestAccessHandler(t *testing.T) {
 	}
 }
 
+func TestAccessHandlerFilter(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.WriteString(w, "<html><body>Hello World!</body></html>")
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
+	w := httptest.NewRecorder()
+	logWriter := bytes.Buffer{}
+	log := zerolog.New(&logWriter)
+	chain := hlog.NewHandler(log)(h.AccessHandler(handler, func(r *http.Request) bool { return true }))
+	chain.ServeHTTP(w, req)
+	entries := logEntriesFromBuffer(logWriter)
+	if len(entries) != 0 {
+		t.Errorf("unexpected log entries; expected 0 entries, but got %d instead.", len(entries))
+	}
+}
+
 func logEntriesFromBuffer(buff bytes.Buffer) []map[string]interface{} {
 	parts := strings.Split(buff.String(), "\n")
 	var entries []map[string]interface{}
 	for i, e := range parts {
+		if e == "" {
+			continue
+		}
 		entries = append(entries, map[string]interface{}{})
 		err := json.Unmarshal([]byte(e), &entries[i])
 		if err != nil {

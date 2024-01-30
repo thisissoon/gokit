@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rs/xid"
@@ -13,27 +14,50 @@ import (
 // Middleware represents a func that chains http handlers
 type Middleware func(next http.Handler) http.Handler
 
+// Used with logging handlers. Returns true if the request should NOT be logged.
+type LogFilter func(r *http.Request) bool
+
 // DefaultRequestLogger provides a default middleware chain with
 // AccessHandler and RequestIDHandler middlewares
 //
 // Example:
-// 	DefaultRequestLogger(log, "requestid", "Request-Id")(handler)
+//
+//	DefaultRequestLogger(log, "requestid", "Request-Id")(handler)
 var DefaultRequestLogger = func(log zerolog.Logger, fieldKey, headerName string) Middleware {
 	return func(next http.Handler) http.Handler {
-		return hlog.NewHandler(log)(AccessHandler(RequestIDHandler(fieldKey, headerName)(next)))
+		return hlog.NewHandler(log)(
+			AccessHandler(
+				RequestIDHandler(fieldKey, headerName)(next),
+				func(r *http.Request) bool {
+					return r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/__")
+				},
+			),
+		)
 	}
 }
 
 // AccessHandler is a standard request logger implementation
-var AccessHandler = hlog.AccessHandler(func(r *http.Request, status, size int, dur time.Duration) {
-	hlog.FromRequest(r).Info().
-		Str("method", r.Method).
-		Str("url", r.URL.String()).
-		Int("status", status).
-		Int("size", size).
-		Dur("duration", dur).
-		Msg("handled http request")
-})
+//
+// Any path that contains a prefix from excludedPathPrefixes will not be logged.
+// This is useful for preventing health checks from being logged out.
+func AccessHandler(next http.Handler, filters ...LogFilter) http.Handler {
+	handler := hlog.AccessHandler(func(r *http.Request, status, size int, dur time.Duration) {
+		for _, filter := range filters {
+			if filter(r) {
+				return
+			}
+		}
+
+		hlog.FromRequest(r).Info().
+			Str("method", r.Method).
+			Str("url", r.URL.String()).
+			Int("status", status).
+			Int("size", size).
+			Dur("duration", dur).
+			Msg("handled http request")
+	})
+	return handler(next)
+}
 
 type idKey struct{}
 
