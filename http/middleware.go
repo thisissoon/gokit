@@ -28,12 +28,18 @@ var DefaultRequestLogger = func(log zerolog.Logger, fieldKey, headerName string)
 		return hlog.NewHandler(log)(
 			AccessHandler(
 				RequestIDHandler(fieldKey, headerName)(next),
-				func(r *http.Request) bool {
-					return r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/__")
-				},
+				DefaultLogFilter,
 			),
 		)
 	}
+}
+
+// The filter used by the DefaultRequestLogger.
+//
+// Generally this will try to filter out really common endpoints, such as the root
+// and health check endpoints.
+var DefaultLogFilter = func(r *http.Request) bool {
+	return r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/__")
 }
 
 // AccessHandler is a standard request logger implementation

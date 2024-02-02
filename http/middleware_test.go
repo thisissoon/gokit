@@ -119,22 +119,61 @@ func TestAccessHandler(t *testing.T) {
 }
 
 func TestAccessHandlerFilter(t *testing.T) {
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := io.WriteString(w, "<html><body>Hello World!</body></html>")
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
+	tc := map[string]struct {
+		RequestUrl         string
+		ExpectedLogEntries int
+		Filter             h.LogFilter
+	}{
+		"always filter": {
+			Filter:             func(r *http.Request) bool { return true },
+			RequestUrl:         "https://example.org/example",
+			ExpectedLogEntries: 0,
+		},
+		"never filter": {
+			Filter:             func(r *http.Request) bool { return false },
+			RequestUrl:         "https://example.org/example",
+			ExpectedLogEntries: 1,
+		},
+		"default filter - should log": {
+			Filter:             h.DefaultLogFilter,
+			RequestUrl:         "https://example.org/example",
+			ExpectedLogEntries: 1,
+		},
+		"default filter - don't log root": {
+			Filter:             h.DefaultLogFilter,
+			RequestUrl:         "https://example.org/",
+			ExpectedLogEntries: 0,
+		},
+		"default filter - don't log healthcheck": {
+			Filter:             h.DefaultLogFilter,
+			RequestUrl:         "https://example.org/__healthcheck__",
+			ExpectedLogEntries: 0,
+		},
+	}
 
-	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
-	w := httptest.NewRecorder()
-	logWriter := bytes.Buffer{}
-	log := zerolog.New(&logWriter)
-	chain := hlog.NewHandler(log)(h.AccessHandler(handler, func(r *http.Request) bool { return true }))
-	chain.ServeHTTP(w, req)
-	entries := logEntriesFromBuffer(logWriter)
-	if len(entries) != 0 {
-		t.Errorf("unexpected log entries; expected 0 entries, but got %d instead.", len(entries))
+	for name, c := range tc {
+		t.Run(name, func(t *testing.T) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, err := io.WriteString(w, "<html><body>Hello World!</body></html>")
+				if err != nil {
+					t.Fatal(err)
+				}
+			})
+
+			req := httptest.NewRequest("GET", c.RequestUrl, nil)
+			w := httptest.NewRecorder()
+			logWriter := bytes.Buffer{}
+			log := zerolog.New(&logWriter)
+			chain := hlog.NewHandler(log)(h.AccessHandler(handler, c.Filter))
+			chain.ServeHTTP(w, req)
+			entries := logEntriesFromBuffer(logWriter)
+			if len(entries) != c.ExpectedLogEntries {
+				t.Errorf("unexpected log entries; expected %d entries, but got %d instead.",
+					c.ExpectedLogEntries,
+					len(entries),
+				)
+			}
+		})
 	}
 }
 
