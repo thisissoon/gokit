@@ -34,6 +34,7 @@ type OtelProvider struct {
 	exporter sdktrace.SpanExporter
 
 	getTraceLogger getTraceLogger
+	trace.Tracer
 }
 
 var _ trace.Tracer = &OtelProvider{}
@@ -56,7 +57,7 @@ func NewOtelProvider(serviceName string, opts ...OtelProviderOption) (*OtelProvi
 	provider := new(OtelProvider)
 	provider.serviceName = serviceName
 	provider.getTraceLogger = &noopTraceLog{}
-
+	provider.Tracer = provider
 	for _, opt := range opts {
 		if err := opt(provider); err != nil {
 			return nil, err
