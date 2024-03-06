@@ -18,10 +18,13 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
 )
 
 // Provides an opinionated wrapper around the Open Telemtry SDK.
 type OtelProvider struct {
+	embedded.Tracer
+
 	serviceName      string
 	serviceNamespace string
 	serviceVersion   string
