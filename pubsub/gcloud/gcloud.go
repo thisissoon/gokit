@@ -76,6 +76,16 @@ func (p *Gcloud) Publish(ctx context.Context, data []byte) error {
 	return nil
 }
 
+// PublishUntilComplete is similar to Publish, but is a blocking call as it uses `.Get()`,
+// it will also return any error that occurs
+func (p *Gcloud) PublishUntilComplete(ctx context.Context, data []byte) error {
+	p.log.Debug().Msg("publishing message until complete")
+	_, err := p.topic.Publish(ctx, &pubsub.Message{
+		Data: data,
+	}).Get(ctx)
+	return err
+}
+
 // Closes the underlying topic resources
 func (p *Gcloud) Close() {
 	p.topic.Stop()
