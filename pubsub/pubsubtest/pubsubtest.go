@@ -38,3 +38,16 @@ func (p *Publisher) Publish(_ context.Context, data []byte) error {
 	p.Data = data
 	return p.Err
 }
+
+// Publisher is a stub implementation of pubsub.CompletePublisher for testing
+type CompletePublisher struct {
+	Data   []byte
+	Called bool
+	Err    error
+}
+
+func (cp *CompletePublisher) PublishUntilComplete(_ context.Context, data []byte) error {
+	cp.Called = true
+	cp.Data = data
+	return cp.Err
+}
