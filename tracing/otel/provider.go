@@ -19,6 +19,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/embedded"
+	"google.golang.org/api/option"
 )
 
 // Provides an opinionated wrapper around the Open Telemtry SDK.
@@ -140,8 +141,18 @@ func WithGCPTraceLogger() OtelProviderOption {
 //
 // A small side effect of this function is that it will add additional resource options
 // (as if it called `WithResourceOptions`), which shouldn't really cause any issues.
-func WithGcpExporterAndOptions(opts ...gcpexporter.Option) OtelProviderOption {
+func WithGcpExporterAndOptions(clientOpts []option.ClientOption, opts ...gcpexporter.Option) OtelProviderOption {
 	return func(op *OtelProvider) error {
+		// Build clientOptions with initial options and disable telemetry
+		clientOptions := append([]option.ClientOption{option.WithTelemetryDisabled()}, clientOpts...)
+
+		// build tracing client
+		tracingClient := gcpexporter.WithTraceClientOptions(clientOptions)
+
+		// add tracing client to exporter options
+		opts = append(opts, tracingClient)
+
+		// build exporter
 		exporter, err := gcpexporter.New(opts...)
 		op.exporter = exporter
 		op.resourceOptions = append(
@@ -155,7 +166,7 @@ func WithGcpExporterAndOptions(opts ...gcpexporter.Option) OtelProviderOption {
 // A simple wrapper around `WithGcpExporterAndOptions` for the common use case where
 // only a GCP project ID needs to be provided.
 func WithGcpExporter(projectId string) OtelProviderOption {
-	return WithGcpExporterAndOptions(gcpexporter.WithProjectID(projectId))
+	return WithGcpExporterAndOptions(nil, gcpexporter.WithProjectID(projectId))
 }
 
 // Sets up the global OTEL SDK state to use the specified configuration, with sane-ish defaults.
