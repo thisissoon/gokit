@@ -2,15 +2,16 @@ package otel
 
 import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc/stats"
 )
 
 // Creates a filter that simply calls every given filter, in the
 // same order as they're passed, until either one returns false (to filter out the request)
 // or until there are no filters left to check, thus allowing the request to be traced.
 func FilterChain(filters ...otelgrpc.Filter) otelgrpc.Filter {
-	return func(ii *otelgrpc.InterceptorInfo) bool {
+	return func(info *stats.RPCTagInfo) bool {
 		for _, f := range filters {
-			if !f(ii) {
+			if !f(info) {
 				return false
 			}
 		}
@@ -27,22 +28,13 @@ func FilterChain(filters ...otelgrpc.Filter) otelgrpc.Filter {
 // Note that method names must be an exact match to be filtered.
 func FilterMethods(methods ...string) otelgrpc.Filter {
 	// false = don't trace; true = trace
-	return func(ii *otelgrpc.InterceptorInfo) bool {
-		if ii == nil {
+	return func(info *stats.RPCTagInfo) bool {
+		if info == nil {
 			return true
 		}
 
-		var method string
-		if ii.StreamServerInfo != nil && len(ii.StreamServerInfo.FullMethod) > 0 {
-			method = ii.StreamServerInfo.FullMethod
-		} else if ii.UnaryServerInfo != nil {
-			method = ii.UnaryServerInfo.FullMethod
-		} else {
-			method = ii.Method
-		}
-
 		for _, filterMethod := range methods {
-			if method == filterMethod {
+			if info.FullMethodName == filterMethod {
 				return false
 			}
 		}
