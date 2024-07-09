@@ -11,6 +11,7 @@ type Message interface {
 	Data() []byte
 	Ack()
 	Nack()
+	EnrichContext(context.Context) context.Context
 }
 
 // A Publisher takes some data and publishes it on a topic
