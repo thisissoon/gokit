@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
@@ -69,7 +70,7 @@ func Test_gcpTraceLog_LogFromCtx(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			mockSpan := &mockSpan{
-				spanContext: spanContext(t, tt.traceID, tt.spanID),
+				spanContext: spanContext(t, tt.traceID, tt.spanID, false),
 			}
 			ctx := trace.ContextWithSpan(tt.args.ctx, mockSpan)
 			mw := bytes.NewBufferString("")
@@ -82,7 +83,7 @@ func Test_gcpTraceLog_LogFromCtx(t *testing.T) {
 	}
 }
 
-func spanContext(t *testing.T, traceID, spanID string) trace.SpanContext {
+func spanContext(t *testing.T, traceID, spanID string, remote bool) trace.SpanContext {
 	spanCtx := trace.SpanContextConfig{}
 	if traceID != "" {
 		id, err := trace.TraceIDFromHex(traceID)
@@ -98,6 +99,7 @@ func spanContext(t *testing.T, traceID, spanID string) trace.SpanContext {
 		}
 		spanCtx.SpanID = id
 	}
+	spanCtx.Remote = remote
 	return trace.NewSpanContext(spanCtx)
 }
 
@@ -109,4 +111,8 @@ type mockSpan struct {
 
 func (m *mockSpan) SpanContext() trace.SpanContext {
 	return m.spanContext
+}
+
+func (m *mockSpan) TracerProvider() trace.TracerProvider {
+	return noop.NewTracerProvider()
 }

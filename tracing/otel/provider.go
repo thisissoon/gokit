@@ -264,12 +264,17 @@ func (o *OtelProvider) getTracerName() string {
 
 // Retrieves a tracer from the current span in the context, or creates/fetches
 // a tracer based off of our configured tracer name.
+//
+// Remote spans will cause this function to always create a new tracer, as it
+// is very likely that the TracerProvider attached to the remote span is a noop one,
+// causing incorrect behaviour.
 func (o *OtelProvider) tracerFromContext(ctx context.Context) trace.Tracer {
 	var provider trace.TracerProvider
 
-	if span := trace.SpanFromContext(ctx); span.SpanContext().IsValid() {
+	if span := trace.SpanFromContext(ctx); span != nil && span.SpanContext().IsValid() && !span.SpanContext().IsRemote() {
 		provider = span.TracerProvider()
-	} else {
+	}
+	if provider == nil {
 		provider = otel.GetTracerProvider()
 	}
 

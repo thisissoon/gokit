@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 var testExporter *tracetest.InMemoryExporter
@@ -294,6 +296,40 @@ func TestSamplerFromEnv(t *testing.T) {
 				assert.NotNil(t, sampler)
 				assert.Contains(t, sampler.Description(), tc.descContains)
 			}
+		})
+	}
+}
+
+func TestTracerFromContext(t *testing.T) {
+	cases := map[string]struct {
+		IsRemote         bool
+		ExpectNoopTracer bool
+	}{
+		"remote spans should use the global trace provider": {
+			IsRemote:         true,
+			ExpectNoopTracer: false,
+		},
+		"non-remote spans should use the span's trace provider": {
+			IsRemote:         false,
+			ExpectNoopTracer: true,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			spanContext := spanContext(t, testTraceID, testSpanID, tc.IsRemote)
+			assert.True(t, spanContext.IsValid())
+			assert.Equal(t, tc.IsRemote, spanContext.IsRemote())
+
+			ctx := oteltrace.ContextWithSpan(context.Background(), &mockSpan{
+				spanContext: spanContext,
+			})
+			assert.Equal(t, spanContext, oteltrace.SpanContextFromContext(ctx))
+
+			// Ensure that tracerFromContext decides to use the global provider.
+			// The mock SpanContext produces `noop.Tracer` while the global provider produces `trace.tracer`
+			_, isNoopTracer := testProvider.tracerFromContext(ctx).(noop.Tracer)
+			assert.Equal(t, tc.ExpectNoopTracer, isNoopTracer)
 		})
 	}
 }
