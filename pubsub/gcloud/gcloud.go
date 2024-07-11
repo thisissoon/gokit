@@ -114,8 +114,13 @@ func (p *Gcloud) Publish(ctx context.Context, data []byte) error {
 // it will also return any error that occurs
 func (p *Gcloud) PublishUntilComplete(ctx context.Context, data []byte) error {
 	p.log.Debug().Msg("publishing message until complete")
+
+	attributes := make(map[string]string)
+	p.propagator.Inject(ctx, propagation.MapCarrier(attributes))
+
 	_, err := p.topic.Publish(ctx, &pubsub.Message{
-		Data: data,
+		Data:       data,
+		Attributes: attributes,
 	}).Get(ctx)
 	return err
 }
