@@ -22,6 +22,11 @@ func (m *Message) Data() []byte {
 	return m.Message.Data
 }
 
+// Attributes returns the message attributes
+func (m *Message) Attrs() map[string]string {
+	return m.Message.Attributes
+}
+
 // Returns a new context that is enriched by the propagator passed during
 // the pubsub client's construction.
 func (m *Message) EnrichContext(ctx context.Context) context.Context {
@@ -97,10 +102,12 @@ func New(ctx context.Context, topic string, client *pubsub.Client, opts ...Optio
 // on a Google Cloud Pubsub topic.
 //
 // The client's propagator will be used to inject attributes into the message.
-func (p *Gcloud) Publish(ctx context.Context, data []byte) error {
+func (p *Gcloud) Publish(ctx context.Context, data []byte, attributes map[string]string) error {
 	p.log.Debug().Msg("publishing message")
 
-	attributes := make(map[string]string)
+	if attributes == nil {
+		attributes = make(map[string]string)
+	}
 	p.propagator.Inject(ctx, propagation.MapCarrier(attributes))
 
 	p.topic.Publish(ctx, &pubsub.Message{
@@ -112,10 +119,12 @@ func (p *Gcloud) Publish(ctx context.Context, data []byte) error {
 
 // PublishUntilComplete is similar to Publish, but is a blocking call as it uses `.Get()`,
 // it will also return any error that occurs
-func (p *Gcloud) PublishUntilComplete(ctx context.Context, data []byte) error {
+func (p *Gcloud) PublishUntilComplete(ctx context.Context, data []byte, attributes map[string]string) error {
 	p.log.Debug().Msg("publishing message until complete")
 
-	attributes := make(map[string]string)
+	if attributes == nil {
+		attributes = make(map[string]string)
+	}
 	p.propagator.Inject(ctx, propagation.MapCarrier(attributes))
 
 	_, err := p.topic.Publish(ctx, &pubsub.Message{

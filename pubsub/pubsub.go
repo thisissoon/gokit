@@ -9,6 +9,7 @@ import (
 // A Message is a pubsub message to be consumed by a Worker
 type Message interface {
 	Data() []byte
+	Attrs() map[string]string
 	Ack()
 	Nack()
 	EnrichContext(context.Context) context.Context
@@ -16,13 +17,13 @@ type Message interface {
 
 // A Publisher takes some data and publishes it on a topic
 type Publisher interface {
-	Publish(context.Context, []byte) error
+	Publish(context.Context, []byte, map[string]string) error
 }
 
 // A CompletePublisher takes some data and publishes it on a topic
 // and returns errors, if any
 type CompletePublisher interface {
-	PublishUntilComplete(context.Context, []byte) error
+	PublishUntilComplete(context.Context, []byte, map[string]string) error
 }
 
 // A Subscriber streams a channel of Message
