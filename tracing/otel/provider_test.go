@@ -3,6 +3,8 @@ package otel
 import (
 	"bytes"
 	"context"
+	"io"
+	"net/http/httptest"
 	"os"
 	"sync"
 	"testing"
@@ -332,6 +334,33 @@ func TestTracerFromContext(t *testing.T) {
 			assert.Equal(t, tc.ExpectNoopTracer, isNoopTracer)
 		})
 	}
+}
+
+func TestPrometheusExporter(t *testing.T) {
+	// Allow otelkit to setup a Prometheus exporter, avoiding mutation of global state.
+	opt, handler := WithPrometheusMetricExporter()
+	otel, err := NewOtelProvider("prometheus", opt, WithTracerName("test"))
+	assert.NoError(t, err)
+	otel.createMeterProvider(&resource.Resource{})
+
+	// Setup test server & test meter
+	server := httptest.NewServer(handler)
+	client := server.Client()
+	defer server.Close()
+
+	meter := otel.Meter()
+	counter, err := meter.Int64Counter("counter")
+	assert.NoError(t, err)
+	counter.Add(context.Background(), 1)
+
+	// Ensure the metric is visible
+	resp, err := client.Get(server.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	assert.Contains(t, string(body), "# TYPE counter_total counter") // _total is added automatically onto counters.
 }
 
 type mockTraceLogger struct {

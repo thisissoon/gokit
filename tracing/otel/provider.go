@@ -3,16 +3,21 @@ package otel
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 
-	gcpexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
+	gcptraceexporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/contrib/detectors/gcp"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -34,10 +39,21 @@ type OtelProvider struct {
 	globalAttributes      []attribute.KeyValue
 	resourceOptions       []resource.Option
 	tracerProviderOptions []sdktrace.TracerProviderOption
+	metricProviderOptions []sdkmetric.Option
 
-	exporter sdktrace.SpanExporter
+	exporter      sdktrace.SpanExporter
+	metricReader  sdkmetric.Reader
+	meterProvider *sdkmetric.MeterProvider
 
-	getTraceLogger getTraceLogger
+	getTraceLogger  getTraceLogger
+	afterSetupFuncs []afterSetupFunc
+}
+
+// Contains information for setting up a HTTP server, which some metrics exporters (prometheus)
+// may need to do.
+type MetricServerInfo struct {
+	Host string // The host to bind the server to, e.g. ":3000"
+	Path string // The path to serve the metrics endpoint on, e.g. "/metrics"
 }
 
 var _ trace.Tracer = &OtelProvider{}
@@ -141,24 +157,25 @@ func WithGCPTraceLogger() OtelProviderOption {
 //
 // A small side effect of this function is that it will add additional resource options
 // (as if it called `WithResourceOptions`), which shouldn't really cause any issues.
-func WithGcpExporterAndOptions(clientOpts []option.ClientOption, opts ...gcpexporter.Option) OtelProviderOption {
+func WithGcpExporterAndOptions(clientOpts []option.ClientOption, opts ...gcptraceexporter.Option) OtelProviderOption {
 	return func(op *OtelProvider) error {
 		// Build clientOptions with initial options and disable telemetry
 		clientOptions := append([]option.ClientOption{option.WithTelemetryDisabled()}, clientOpts...)
 
 		// build tracing client
-		tracingClient := gcpexporter.WithTraceClientOptions(clientOptions)
+		tracingClient := gcptraceexporter.WithTraceClientOptions(clientOptions)
 
 		// add tracing client to exporter options
 		opts = append(opts, tracingClient)
 
 		// build exporter
-		exporter, err := gcpexporter.New(opts...)
+		exporter, err := gcptraceexporter.New(opts...)
 		op.exporter = exporter
 		op.resourceOptions = append(
 			op.resourceOptions,
 			resource.WithDetectors(gcp.NewDetector()),
 		)
+
 		return err
 	}
 }
@@ -166,7 +183,47 @@ func WithGcpExporterAndOptions(clientOpts []option.ClientOption, opts ...gcpexpo
 // A simple wrapper around `WithGcpExporterAndOptions` for the common use case where
 // only a GCP project ID needs to be provided.
 func WithGcpExporter(projectId string) OtelProviderOption {
-	return WithGcpExporterAndOptions(nil, gcpexporter.WithProjectID(projectId))
+	return WithGcpExporterAndOptions(nil, gcptraceexporter.WithProjectID(projectId))
+}
+
+// Metrics are created via an integration with the Prometheus SDK. Metrics can be
+// "exported" by serving the returned handler on a HTTP server.
+//
+// You may prefer to use `WithPrometheusMetricExporterAutoServer` for ease of use.
+func WithPrometheusMetricExporter(opt ...prometheus.Option) (OtelProviderOption, http.Handler) {
+	return func(op *OtelProvider) error {
+		exporter, err := prometheus.New(opt...)
+		if err != nil {
+			return err
+		}
+		op.metricReader = exporter
+
+		return nil
+	}, promhttp.Handler()
+}
+
+// Similar to `WithPrometheusMetricExporter` except this will automatically setup a HTTP server
+// after `SetupGlobalState` is called.
+func WithPrometheusMetricExporterAutoServer(server MetricServerInfo, opt ...prometheus.Option) OtelProviderOption {
+	return func(op *OtelProvider) error {
+		optFunc, handler := WithPrometheusMetricExporter(opt...)
+		if err := optFunc(op); err != nil {
+			return err
+		}
+
+		op.afterSetupFuncs = append(op.afterSetupFuncs, func() error {
+			go func() {
+				mux := http.NewServeMux()
+				mux.Handle(server.Path, handler)
+				if err := http.ListenAndServe(server.Host, mux); err != nil {
+					fmt.Printf("error starting prometheus server: %v", err) // TODO: Use a proper logger?
+				}
+			}()
+			return nil
+		})
+
+		return nil
+	}
 }
 
 // Sets up the global OTEL SDK state to use the specified configuration, with sane-ish defaults.
@@ -179,14 +236,26 @@ func WithGcpExporter(projectId string) OtelProviderOption {
 //
 // The TracerProvider is registered as the global provider within the OTEL SDK.
 //
+// A new MeterProvider is created using certain defaults.
+//
+// The MeterProvider uses the aforementioned Resource as its default.
+//
+// The MeterProvider is registered as the global provider within the OTEL SDK.
+//
 // A TextMapPropagator for the W3C Trace Context and B3 formats is installed by default as the
 // global propagator.
 //
+// Some exporters may perform additional actions during this function, for example `WithPrometheusMetricExporterAutoServer`
+// will start its HTTP server.
+//
 // You should defer-call the returned `CleanupFunc` as this will force the span batcher to flush
-// the spans into the underlying exporter.
+// the spans/metrics into the underlying exporter.
 func (o *OtelProvider) SetupGlobalState(ctx context.Context) (CleanupFunc, error) {
 	if o.exporter == nil {
 		o.exporter = tracetest.NewNoopExporter() // To eliminate any potential nil access errors
+	}
+	if o.metricReader == nil {
+		o.metricReader = sdkmetric.NewManualReader()
 	}
 
 	res, err := o.createResource(ctx)
@@ -199,6 +268,8 @@ func (o *OtelProvider) SetupGlobalState(ctx context.Context) (CleanupFunc, error
 		return func() {}, err
 	}
 
+	cleanupFuncs := []func(){}
+
 	opts := append(
 		o.tracerProviderOptions,
 		sdktrace.WithBatcher(o.exporter),
@@ -207,6 +278,11 @@ func (o *OtelProvider) SetupGlobalState(ctx context.Context) (CleanupFunc, error
 	)
 	provider := sdktrace.NewTracerProvider(opts...)
 	otel.SetTracerProvider(provider)
+	cleanupFuncs = append(cleanupFuncs, func() { _ = provider.ForceFlush(ctx) })
+
+	o.createMeterProvider(res)
+	otel.SetMeterProvider(o.meterProvider)
+	cleanupFuncs = append(cleanupFuncs, func() { _ = o.meterProvider.ForceFlush(ctx) })
 
 	otel.SetTextMapPropagator(
 		propagation.NewCompositeTextMapPropagator(
@@ -215,7 +291,17 @@ func (o *OtelProvider) SetupGlobalState(ctx context.Context) (CleanupFunc, error
 		),
 	)
 
-	return func() { provider.ForceFlush(ctx) }, nil
+	for _, fun := range o.afterSetupFuncs {
+		if err = fun(); err != nil {
+			return nil, err
+		}
+	}
+
+	return func() {
+		for _, fun := range cleanupFuncs {
+			fun()
+		}
+	}, nil
 }
 
 // A simple helper function that retrieves the current tracer from the context (or fetches a global Tracer)
@@ -227,6 +313,14 @@ func (o *OtelProvider) Start(ctx context.Context, spanName string, opts ...trace
 	log := o.getTraceLogger.LogFromCtx(ctx)
 	ctx = log.WithContext(ctx)
 	return ctx, span
+}
+
+// A loose wrapper around the standard OTEL MeterProvider.Meter function using the previously
+// configured MeterProvider, which also sets a few default options.
+//
+// If you're interested in further details, please see the `MeterProvider.Meter` function from the OTEL SDK.
+func (o *OtelProvider) Meter(opts ...metric.MeterOption) metric.Meter {
+	return o.meterProvider.Meter(o.getTracerName(), opts...)
 }
 
 // Creates a new resource using a bunch of the configuration options provided, as well
@@ -251,6 +345,15 @@ func (o *OtelProvider) createResource(ctx context.Context) (*resource.Resource, 
 	)
 
 	return resource.New(ctx, opts...)
+}
+
+func (o *OtelProvider) createMeterProvider(res *resource.Resource) {
+	mpOpts := append(
+		o.metricProviderOptions,
+		sdkmetric.WithResource(res),
+		sdkmetric.WithReader(o.metricReader),
+	)
+	o.meterProvider = sdkmetric.NewMeterProvider(mpOpts...)
 }
 
 // Returns either the configured tracer name, or the service name if no tracer name
@@ -284,6 +387,8 @@ func (o *OtelProvider) tracerFromContext(ctx context.Context) trace.Tracer {
 type getTraceLogger interface {
 	LogFromCtx(ctx context.Context) *zerolog.Logger
 }
+
+type afterSetupFunc func() error
 
 // Despite OTEL SDK's documentation, it doesn't seem to want to use the standard
 // OTEL env vars when deployed into GKE. Instead of trying to debug/find
