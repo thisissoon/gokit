@@ -5,15 +5,17 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // SpanRecordError decorates a span with attributes and records the error
-// SetStatus doesn't seem to work with Cloud Trace at the moment so we're using the '/http/status_code' attribute as that seems to be the only to colour a span red
+// SetStatus only works with new Cloud Trace, for the legacy version we're using the '/http/status_code' attribute to colour a span red
 // It also adds the error flag to make filtering traces with errors easier and a description of the error
 func SpanRecordError(span trace.Span, err error, description string, eventOptions ...trace.EventOption) {
+	span.SetStatus(codes.Error, description) //sets status for new UI
 	span.SetAttributes(
-		// This colours the span red in Cloud Trace
+		// This colours the span red in Cloud Trace (for legacy UI)
 		attribute.Int("/http/status_code", 500),
 		// This helps filter traces with error spans, we can use 'HasLabel:error' in Cloud Trace
 		attribute.Bool("error", true),
